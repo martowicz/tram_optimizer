@@ -38,6 +38,8 @@ def _build_and_solve_model(P, num_stops: int, num_hours: int) -> SolverResult:
             prev_waiting = w[s][d][t - 1] if t > 0 else 0
             problem += w[s][d][t] == prev_waiting + int(P[s, d, t]) - b[s][d][t]
 
+            problem += w[s][d][t] >= 0
+
     for segment_end in range(num_stops - 1):
         for t in hours:
             onboard_on_segment = pulp.lpSum(
