@@ -52,7 +52,7 @@ if __name__ == "__main__":
     num_stops = 5
     num_hours = 24
     generate_dummy_data(num_stops, num_hours)
-    P, W = load_data_as_matrices(num_stops, num_hours)
+    P, W = load_data_as_matrices("data/input/travel_times.csv", num_stops, num_hours)
 
     cs = [40, 50]
     rs = [15, 30]

@@ -4,7 +4,7 @@ from dataclasses import dataclass
 import pandas as pd
 import pulp
 
-from config import ALPHA, BETA, C, R
+from annealing_helpers import ProblemData
 from data_loader import load_data_as_matrices
 
 
@@ -15,9 +15,11 @@ class SolverResult:
     total_fleet: int
     frequencies: dict[int, int]
     fleets: dict[int, int]
+    params: ProblemData
 
 
-def _build_and_solve_model(P, num_stops: int, num_hours: int) -> SolverResult:
+def _build_and_solve_model(params: ProblemData, num_hours: int) -> SolverResult:
+    num_stops = params.num_stops
     od_pairs = [(s, d) for s in range(num_stops) for d in range(s + 1, num_stops)]
     hours = list(range(num_hours))
 
@@ -29,14 +31,14 @@ def _build_and_solve_model(P, num_stops: int, num_hours: int) -> SolverResult:
     w = pulp.LpVariable.dicts("w", (range(num_stops), range(num_stops), hours), lowBound=0, cat=pulp.LpInteger)
 
     problem += (
-        ALPHA * pulp.lpSum(w[s][d][t] for (s, d) in od_pairs for t in hours)
-        + BETA * pulp.lpSum(v[t] for t in hours)
+        params.alpha * pulp.lpSum(w[s][d][t] for (s, d) in od_pairs for t in hours)
+        + params.beta * pulp.lpSum(v[t] for t in hours)
     )
 
     for s, d in od_pairs:
         for t in hours:
             prev_waiting = w[s][d][t - 1] if t > 0 else 0
-            problem += w[s][d][t] == prev_waiting + int(P[s, d, t]) - b[s][d][t]
+            problem += w[s][d][t] == prev_waiting + int(params.P[s, d, t]) - b[s][d][t]
 
             problem += w[s][d][t] >= 0
 
@@ -47,10 +49,10 @@ def _build_and_solve_model(P, num_stops: int, num_hours: int) -> SolverResult:
                 for i in range(segment_end + 1)
                 for d in range(segment_end + 1, num_stops)
             )
-            problem += onboard_on_segment <= f[t] * C
+            problem += onboard_on_segment <= f[t] * params.C
 
     for t in hours:
-        problem += 60 * v[t] >= f[t] * R
+        problem += 60 * v[t] >= f[t] * params.R
 
     solve_status = problem.solve(pulp.PULP_CBC_CMD(msg=False))
     if pulp.LpStatus[solve_status] != "Optimal":
@@ -68,6 +70,7 @@ def _build_and_solve_model(P, num_stops: int, num_hours: int) -> SolverResult:
         total_fleet=total_fleet,
         frequencies=frequencies,
         fleets=fleets,
+        params=params,
     )
 
 
@@ -127,10 +130,10 @@ def _save_outputs(result: SolverResult, timetable: pd.DataFrame, output_dir: str
             {"Metric": "ObjectiveValue", "Value": result.objective_value},
             {"Metric": "TotalWaitingPassengers", "Value": result.total_waiting},
             {"Metric": "TotalFleetAcrossHours", "Value": result.total_fleet},
-            {"Metric": "Alpha", "Value": ALPHA},
-            {"Metric": "Beta", "Value": BETA},
-            {"Metric": "Capacity_C", "Value": C},
-            {"Metric": "CycleTime_R", "Value": R},
+            {"Metric": "Alpha", "Value": result.params.alpha},
+            {"Metric": "Beta", "Value": result.params.beta},
+            {"Metric": "Capacity_C", "Value": result.params.C},
+            {"Metric": "CycleTime_R", "Value": result.params.R},
         ]
     )
 
@@ -151,12 +154,17 @@ def _save_outputs(result: SolverResult, timetable: pd.DataFrame, output_dir: str
 
 
 def solve_and_export(
+    C: int = 40,
+    R: int = 30,
+    alpha: float = 1.0,
+    beta: float = 30.0,
     num_stops: int = 5,
     num_hours: int = 24,
     output_dir: str = "data/output",
 ) -> SolverResult:
-    P, W = load_data_as_matrices(num_stops=num_stops, num_hours=num_hours)
-    result = _build_and_solve_model(P=P, num_stops=num_stops, num_hours=num_hours)
+    P, W = load_data_as_matrices("data/input/travel_times.csv", num_stops=num_stops, num_hours=num_hours)
+    params = ProblemData(P, C, R, alpha, beta)
+    result = _build_and_solve_model(params, num_hours=num_hours)
     cumulative_forward_minutes = _forward_travel_cumsum(W=W, num_stops=num_stops)
     timetable = _generate_timetable(result.frequencies, cumulative_forward_minutes)
     _save_outputs(result=result, timetable=timetable, output_dir=output_dir)
