@@ -81,7 +81,7 @@ def build_initial_frequency(data, hourly_demand):
     return [max(1, math.ceil(h / data.C)) for h in hourly_demand]
 
 def run_schedule_optimization(data, initial_temp=5.0, min_temp=1e-3, cooling_rate=0.999,
-                              max_iter=1000, log_interval=250,
+                              max_iter=1000, log_every=250,
                               freq_delta_choices=None, max_frequency=30):
     if freq_delta_choices is None:
         freq_delta_choices = [-2, -1, 1, 2]
@@ -107,7 +107,7 @@ def run_schedule_optimization(data, initial_temp=5.0, min_temp=1e-3, cooling_rat
         min_temp = min_temp,
         cooling_rate = cooling_rate,
         max_iter = max_iter,
-        log_interval = log_interval
+        log_interval = log_every
     )
 
     best_solution = evaluate_schedule(best_f, data, return_details=True)

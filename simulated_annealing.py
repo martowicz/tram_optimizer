@@ -49,7 +49,7 @@ def simulated_annealing_log(
 
     best_state = current_state
     best_energy = current_energy
-    history_log = [(0, best_energy)]
+    history_log = [(0, current_energy)]
 
     for step in range(1, max_iter + 1):
         if temperature < min_temp:
@@ -68,7 +68,7 @@ def simulated_annealing_log(
             best_state = copy.deepcopy(current_state)
 
         if step % log_interval == 0:
-            history_log.append((step, best_energy))
+            history_log.append((step, current_energy))
 
         temperature *= cooling_rate
 

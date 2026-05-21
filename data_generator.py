@@ -23,11 +23,11 @@ def generate_dummy_data(num_stops=5, num_hours=24):
     demand_data = []
     
     for t in range(1, num_hours + 1):
-        if t in [7, 8, 9]:
+        if t%24 in [7, 8, 9]:
             peak_multiplier = 3.0
-        elif t in [15, 16, 17]:
+        elif t%24 in [15, 16, 17]:
             peak_multiplier = 2.5
-        elif t in [23, 24, 1, 2, 3, 4]:
+        elif t%24 in [23, 24, 1, 2, 3, 4]:
             peak_multiplier = 0.1
         else:
             peak_multiplier = 1.0
