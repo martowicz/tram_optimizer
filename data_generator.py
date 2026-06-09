@@ -49,7 +49,8 @@ def generate_dummy_data(num_stops=5, num_hours=24):
                 })
 
     df_demand = pd.DataFrame(demand_data)
-    df_demand.to_csv("data/input/demand_od.csv", index=False)
+    df_demand.to_csv("data/input/demand.csv", index=False)
+    print("✅ Pomyślnie wygenerowano dane odnośnie czasów przejazdu oraz popytu")
 
 if __name__ == "__main__":
     generate_dummy_data(num_stops=5, num_hours=24)
