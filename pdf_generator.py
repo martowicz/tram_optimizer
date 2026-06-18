@@ -5,9 +5,8 @@ from weasyprint import HTML
 def generate_pdf_posters(csv_filepath: str, stop_names_dictionary: dict, output_dir: str = "data/output"):
     """
     Na podstawie gotowego rozkładu jazdy z pliku CSV oraz słownika nazw przystanków,
-    generuje i zapisuje profesjonalne plakaty PDF dla każdego przystanku z osobna.
+    generuje i zapisuje plakaty PDF dla każdego przystanku z osobna.
     """
-    # 1. Sprawdzenie czy plik istnieje i wczytanie danych
     if not os.path.exists(csv_filepath):
         print(f"❌ Błąd: Nie znaleziono pliku {csv_filepath}")
         return
@@ -15,41 +14,33 @@ def generate_pdf_posters(csv_filepath: str, stop_names_dictionary: dict, output_
     print(f"📖 Wczytywanie rozkładu jazdy z pliku: {csv_filepath}...")
     df_schedule = pd.read_csv(csv_filepath)
     
-    # 2. Upewniamy się, że folder docelowy istnieje
     os.makedirs(output_dir, exist_ok=True)
     
     unikalne_przystanki = sorted(df_schedule["Stop"].unique())
     
-    # Wyciągnięcie nazwy ostatniego przystanku (jako kierunek)
     ostatni_przystanek_id = max(stop_names_dictionary.keys())
     kierunek = stop_names_dictionary.get(ostatni_przystanek_id, "Koniec trasy")
     
-    # 3. Główna pętla generująca PDF dla każdego przystanku
     for stop_id in unikalne_przystanki:
         stop_name = stop_names_dictionary.get(stop_id, f"Przystanek {stop_id}")
         
-        # Filtrujemy dane tylko dla konkretnego przystanku
         df_stop = df_schedule[df_schedule["Stop"] == stop_id].copy()
         
-        # Inicjalizacja pustego rozkładu godzinowego
         rozklad_godzinowy = {h: [] for h in range(24)}
         
-        # Zbieranie minut odjazdów do odpowiednich godzin
         for _, row in df_stop.iterrows():
-            # Zabezpieczenie na wypadek braków w danych
             if pd.isna(row["ClockTime"]):
                 continue
-            # Wyciągamy godziny i minuty wprost z tekstu, np. "06:14"
+
             hh, mm = map(int, str(row["ClockTime"]).split(":"))
             rozklad_godzinowy[hh].append(f"{mm:02d}")
             
-        # Budowanie graficznej "ośki" z trasą
+
         trasa_html = " &rarr; ".join([
             f"<strong>{stop_names_dictionary.get(k, str(k))}</strong>" if k == stop_id else stop_names_dictionary.get(k, str(k))
             for k in sorted(stop_names_dictionary.keys())
         ])
         
-        # Generowanie wierszy tabeli (godziny i odpowiadające im minuty)
         wiersze_html = ""
         for h in range(24):
             minuty = sorted(rozklad_godzinowy[h])
@@ -62,7 +53,6 @@ def generate_pdf_posters(csv_filepath: str, stop_names_dictionary: dict, output_
             </tr>
             """
             
-        # Główny szablon HTML
         szablon_html = f"""
         <html>
         <head>
@@ -108,7 +98,6 @@ def generate_pdf_posters(csv_filepath: str, stop_names_dictionary: dict, output_
         </html>
         """
         
-        # Zapis do pliku tymczasowego, konwersja na PDF i czyszczenie
         temp_html_path = f"temp_stop_{stop_id}.html"
         pdf_output_path = f"{output_dir}/rozkład_przystanek_{stop_id}.pdf"
         
