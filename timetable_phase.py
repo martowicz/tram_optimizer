@@ -6,12 +6,6 @@ import numpy as np
 
 def generate_timetable(results, W_matrix):
 
-    """
-    Faza 2: Generowanie inteligentnego, minutowego rozkładu jazdy na podstawie optymalnych częstotliwości z Fazy 1.
-    Zamiast dzielić dobę na sztywne, 60-minutowe bloki, funkcja buduje ciągłą krzywą skumulowaną (dystrybuantę) dla wszystkich kursów w ciągu dnia. 
-    Następnie wylicza "środek ciężkości" dla każdego tramwaju (koncept k+0.5) i za pomocą interpolacji liniowej znajduje jego precyzyjną minutę odjazdu. 
-    Dzięki temu algorytm naturalnie wygładza interwały na stykach godzin o różnym popycie, całkowicie eliminując problem niefizycznych luk (tzw. "schodków") w rozkładzie.
-    """
 
     best_f = results["best_f"]
     num_stops = W_matrix.shape[0]

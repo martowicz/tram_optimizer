@@ -88,7 +88,6 @@ def make_comparisons(dir, results, cs, rs, alphas, betas):
         param_data[param_name] = entries
 
     _plot_per_param_summary(dir, param_data)
-    _plot_avg_std_scatter(dir, param_data)
     _plot_hourly_heatmaps(dir, param_data)
     _plot_violin(dir, param_data)
     _plot_parallel_coordinates(dir, param_data)
@@ -127,30 +126,6 @@ def _plot_per_param_summary(dir, param_data):
         plt.tight_layout()
         plt.savefig(f"{dir}compare_{param_name}.png")
         plt.close(fig)
-
-
-# ── Plot 2: (avg, std) scatter across all parameter sweeps ───────────────────
-def _plot_avg_std_scatter(dir, param_data):
-    colors = {"C": "steelblue", "R": "seagreen", "alpha": "tomato", "beta": "goldenrod"}
-    fig, ax = plt.subplots(figsize=(8, 6))
-    plotted_labels = set()
-
-    for param_name, entries in param_data.items():
-        for val, trips in entries:
-            avg, std = np.mean(trips), np.std(trips)
-            label = param_name if param_name not in plotted_labels else "_nolegend_"
-            plotted_labels.add(param_name)
-            ax.scatter(avg, std, color=colors[param_name], label=label, s=80, alpha=0.8)
-            ax.annotate(f"{param_name}={val}", (avg, std),
-                        textcoords="offset points", xytext=(5, 4), fontsize=7)
-
-    ax.set_xlabel("avg trips per hour")
-    ax.set_ylabel("std of trips per hour")
-    ax.set_title("Schedule variability space  (avg vs std)")
-    ax.legend(title="parameter")
-    plt.tight_layout()
-    plt.savefig(f"{dir}compare_avg_std_space.png")
-    plt.close(fig)
 
 
 # ── Plot 3: hourly heatmap grids ──────────────────────────────────────────────
@@ -265,9 +240,8 @@ def _plot_parallel_coordinates(dir, param_data):
 # ── Plot 6: correlation heatmap ───────────────────────────────────────────────
 def _plot_correlation_heatmap(dir, results, cs, rs, alphas, betas):
     """
-    Build a row per result: [C, R, alpha, beta, avg_trips_per_hour].
-    Then show a 4x1 heatmap grid: for each pair of (param, avg_trips),
-    also show a full 4x4 Pearson correlation matrix across all five variables.
+    4 rows (parameters) × 4 cols (output metrics): Pearson r between each
+    parameter and each output metric. Parameter-to-parameter cells are omitted.
     """
     rows = []
     for C in cs:
@@ -278,62 +252,44 @@ def _plot_correlation_heatmap(dir, results, cs, rs, alphas, betas):
                     trips = results.get(key)
                     if trips is None:
                         continue
-                    rows.append([C, R, alpha, beta, np.mean(trips)])
+                    rows.append({
+                        "C": C, "R": R, "alpha": alpha, "beta": beta,
+                        "avg":     np.mean(trips),
+                        "std":     np.std(trips),
+                        "avg_min": np.min(trips),
+                        "avg_max": np.max(trips),
+                    })
 
     if not rows:
         return
 
-    df = pd.DataFrame(rows, columns=["C", "R", "alpha", "beta", "avg_trips"])
-    corr = df.corr()
+    df = pd.DataFrame(rows)
+    params  = ["C", "R", "alpha", "beta"]
+    metrics = ["avg", "std", "avg_min", "avg_max"]
 
-    # ── 6a: full correlation matrix ───────────────────────────────────────────
-    fig, ax = plt.subplots(figsize=(7, 6))
-    labels = corr.columns.tolist()
-    mat = corr.values
-    n = len(labels)
+    # Build the 4×4 cross-correlation matrix (params vs metrics only)
+    mat = np.array([
+        [df[p].corr(df[m]) for m in metrics]
+        for p in params
+    ])
 
-    im = ax.imshow(mat, cmap="coolwarm", vmin=-1, vmax=1)
+    fig, ax = plt.subplots(figsize=(7, 5))
+    im = ax.imshow(mat, cmap="coolwarm", vmin=-1, vmax=1, aspect="auto")
     plt.colorbar(im, ax=ax, label="Pearson r")
 
-    ax.set_xticks(range(n))
-    ax.set_yticks(range(n))
-    ax.set_xticklabels(labels, rotation=45, ha="right")
-    ax.set_yticklabels(labels)
+    ax.set_xticks(range(len(metrics)))
+    ax.set_yticks(range(len(params)))
+    ax.set_xticklabels(metrics)
+    ax.set_yticklabels(params)
 
-    for i in range(n):
-        for j in range(n):
+    for i in range(len(params)):
+        for j in range(len(metrics)):
             ax.text(j, i, f"{mat[i, j]:.2f}", ha="center", va="center",
-                    fontsize=9, color="black" if abs(mat[i, j]) < 0.7 else "white")
+                    fontsize=10, color="black" if abs(mat[i, j]) < 0.7 else "white")
 
-    ax.set_title("Pearson correlation matrix\n(parameters vs avg trips/hour)")
+    ax.set_title("Parameter → output metric correlations (Pearson r)")
     plt.tight_layout()
     plt.savefig(f"{dir}correlation_matrix.png", dpi=120)
-    plt.close(fig)
-
-    # ── 6b: scatter plots — each param vs avg_trips ───────────────────────────
-    params = ["C", "R", "alpha", "beta"]
-    colors = {"C": "steelblue", "R": "seagreen", "alpha": "tomato", "beta": "goldenrod"}
-
-    fig, axes = plt.subplots(1, 4, figsize=(16, 4), sharey=True)
-    for ax, param in zip(axes, params):
-        x = df[param].values
-        y = df["avg_trips"].values
-        r = corr.loc[param, "avg_trips"]
-
-        ax.scatter(x, y, color=colors[param], alpha=0.4, s=18)
-
-        # linear trend line
-        m, b = np.polyfit(x, y, 1)
-        x_line = np.linspace(x.min(), x.max(), 100)
-        ax.plot(x_line, m * x_line + b, color="black", linewidth=1.5, linestyle="--")
-
-        ax.set_xlabel(param)
-        ax.set_title(f"r = {r:.3f}")
-
-    axes[0].set_ylabel("avg trips / hour")
-    fig.suptitle("Parameter vs avg trips/hour — scatter with trend lines", y=1.02)
-    plt.tight_layout()
-    plt.savefig(f"{dir}correlation_scatter.png", dpi=120, bbox_inches="tight")
     plt.close(fig)
 
 
